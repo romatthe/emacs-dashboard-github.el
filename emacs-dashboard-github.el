@@ -1,54 +1,25 @@
 ;;; -*- lexical-binding: t -*-
 
-(use-package request
-  :straight t)
-
-(use-package dash
-  :straight t)
-
-(use-package dashboard
-  :straight t)
-
-;;(require 'request)
-;;(require 'dash)
-;;(require 'dashboard)
-;;(require 'dashboard-widgets)
+(require 'request)
+(require 'dash)
+(require 'dashboard)
+(require 'dashboard-widgets)
 
 (add-to-list 'dashboard-item-generators  '(github . dashboard-insert-github))
 (add-to-list 'dashboard-items '(github) t)
 
-(defconst dgh--supported-event-types'
+(defconst dashboard-github-supported-event-types
   ("CreateEvent"
    "ForkEvent"
    "IssuesEvent"
    "IssueCommentEvent"
-   ;; "MemberEvent"
-   ;; "MembershipEvent"
-   ;; "PublicEvent"
+   "PublicEvent"
    "PullRequestEvent"
    "PullRequestReviewEvent"
-   ;; "PullRequestReviewCommentEvent"
-   ;; "ReleaseEvent"
-   ;; "RepositoryEvent"
-   ;; "StarEvent"
+   "PullRequestReviewCommentEvent"
+   "ReleaseEvent"
    "WatchEvent")
   "Github API event types current supported by the package.")
-
-(defconst dgh-test-create
-  '((type  . "CreateEvent")
-    (actor . ((login . "Joey")))
-    (repo  . ((name . "example/example-repo")))))
-
-(defconst dgh-test-fork
-  '((type  . "ForkEvent")
-    (actor . ((login . "Joey")))
-    (payload . ((forkee . ((full_name . "Joey/example-repo")))))
-    (repo  . ((name . "example/example-repo")))))
-
-(defconst dgh-test-watch
-  '((type  . "WatchEvent")
-    (actor . ((login . "Joey")))
-    (repo  . ((name . "example/example-repo")))))
 
 (defvar dashboard-github-user-name "romatthe"
   "Github user name for which to fetch events.")
@@ -58,11 +29,11 @@
 	  dashboard-github-user-name)
   "Github public events API URL.")
 
-(defun dgh--event-is-supported? (event)
+(defun dashboard-github-event-is-supported? (event)
   "Check if EVENT is one of the supported event types."
-  (-contains? dgh--supported-event-types (assoc-default 'type event)))
+  (-contains? dashboard-github-supported-event-types (assoc-default 'type event)))
 
-(defun dgh--get-events ()
+(defun dashboard-github-get-events ()
   "Get public Github events, and execute CALLBACK function."
   (let
       ((request-result
@@ -73,28 +44,24 @@
 	 :success (cl-function (lambda (&key data &allow-other-keys) ())))))
     (append (request-response-data request-result) nil)))
 	
-(defun dgh--parse-events (events)
+(defun dashboard-github-parse-events (events)
   "Parse EVENTS data from events request."
-  (-map #'dgh--parse-event
-	(-filter #'dgh--event-is-supported? events)))
+  (-map #'dashboard-github-parse-event
+	(-filter #'dashboard-github-event-is-supported? events)))
 
-(defun dgh--parse-event (event)
+(defun dashboard-github-parse-event (event)
   "Parse a single EVENT."
   (pcase (assoc-default 'type event)
     ("CreateEvent"                   (dashboard-github-parse-create-event event))
     ("ForkEvent"                     (dashboard-github-parse-fork-event event))
     ("IssuesEvent"                   (dashboard-github-parse-issue-event event))
     ("IssueCommentEvent"             (dashboard-github-parse-issue-comment-event event))
-    ;; ("MemberEvent"                   (message "MemberEvent"))
-    ;; ("MembershipEvent"               (message "MembershipEvent"))
-    ;; ("PublicEvent"                   (message "PublicEvent"))
+    ("PublicEvent"                   (dashboard-github-parse-public-event event))
     ("PullRequestEvent"              (dashboard-github-parse-pull-request-event event))
     ("PullRequestReviewEvent"        (dashboard-github-parse-pull-request-review-event event))
-    ;; ("PullRequestReviewCommentEvent" (message "PullRequestReviewCommentEvent"))
-    ;; ("ReleaseEvent"                  (message "ReleaseEvent"))
-    ;; ("RepositoryEvent"               (message "RepositoryEvent"))
-    ;; ("StarEvent"                     (message "StarEvent"))
-    ("WatchEvent"                     (dashboard-github-parse-watch-event event))))
+    ("PullRequestReviewCommentEvent" (dashboard-github-parse-pull-request-review-comment-event event))
+    ("ReleaseEvent"                  (dashboard-github-parse-release-event event))
+    ("WatchEvent"                    (dashboard-github-parse-watch-event event))))
 
 (defun dashboard-github-parse-create-event (event)
   "Parse a CreateEvent data structure from EVENT."
@@ -112,8 +79,8 @@
 		      (assoc-recursive event 'actor 'login)
 		      (assoc-recursive event 'payload 'forkee 'full_name)
 		      (assoc-recursive event 'repo 'name)))
-    (cons 'url (format "https://github.com/%s"
-		       (assoc-recursive event 'repo 'name)))))
+   (cons 'url (format "https://github.com/%s"
+		      (assoc-recursive event 'repo 'name)))))
  
 (defun dashboard-github-parse-watch-event (event)
   "Parse a WatchEvent data scructure from EVENT."
@@ -146,6 +113,14 @@
 		      (assoc-recursive event 'repo 'name)))
    (cons 'url (assoc-recursive event 'payload 'comment 'html_url))))
 
+(defun dashboard-github-public-event (event)
+  "Parse a PublicEvent data structure from EVENT."
+  (list
+   (cons 'msg (format "[%s] has made [%s] public"
+		      (assoc-recursive event 'actor 'login)
+		      (assoc-recursive event 'payload 'repository 'full_name)))
+   (cons 'url (assoc-recursive event 'payload 'repository 'html_url))))
+
 (defun dashboard-github-parse-pull-request-event (event)
   "Parse a PullRequestEvent data structure from EVENT."
   (list
@@ -168,11 +143,32 @@
 		      (assoc-recursive event 'repo 'name)))
    (cons 'url (assoc-recursive event 'payload 'review  'html_url))))
 
+(defun dashboard-github-parse-pull-request-review-comment-event (event)
+  "Parse a PullRequestReviewComment structure from EVENT."
+  (list
+   (cons 'msg (format "[%s] %s a comment on a PR review for [%s](#%d) in [%s]"
+		      (assoc-recursive event 'actor 'login)
+		      (assoc-recursive event 'payload 'action)
+		      (assoc-recursive event 'payload 'pull_request 'title)
+		      (assoc-recursive event 'payload 'pull_request 'number)
+		      (assoc-recursive event 'repo 'name)))
+   (cons 'url (assoc-recursive event 'payload 'comment 'html_url))))
+
+(defun dashboard-github-parse-release-event (event)
+  "Parse a ReleaseEvent structure from EVENT."
+  (list
+   (cons 'msg (format "[%s] %s release (%s) for [%s]"
+		      (assoc-recursive event 'actor 'login)
+		      (assoc-recursive event 'payload 'action)
+		      (assoc-recursive event 'payload 'release 'tag_name)
+		      (assoc-recursive event 'repo 'name)))
+   (cons 'url (assoc-recursive event 'payload 'release 'html_url))))
+
 (defun dashboard-insert-github (list-size)
   "Insert LIST-SIZE amount of events from Github into the dashboard."
  (dashboard-insert-section
    "Github:"
-   (dgh--parse-events (dgh--get-events))
+   (dashboard-github-parse-events (dashboard-github-get-events))
    list-size
    "g"
    (lambda (&rest ignore) (browse-url (assoc-default 'url el)))
@@ -183,6 +179,14 @@
   (while keys
     (setq alist (cdr (assoc (pop keys) alist))))
   alist)
+
+;;; Loop structure
+;;(defun find-it (loops)
+;;  (catch 'enough
+;;    (let ((total 0))  ; otherwise a total is a void variable
+;;      (dotimes (number loops total)
+;;	(setq total (+ total (1+ number)))
+;;	(when (equal total 4) (throw 'enough total))))))
 
 (provide 'emacs-dashboard-github)
 
