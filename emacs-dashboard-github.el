@@ -131,7 +131,7 @@
 		      (assoc-recursive event 'actor 'login)
 		      (assoc-recursive event 'payload 'action)
 		      (assoc-recursive event 'payload 'issue 'title)
-		      (assoc-recursive event 'payload 'issue 'numer)
+		      (assoc-recursive event 'payload 'issue 'number)
 		      (assoc-recursive event 'repo 'name)))
    (cons 'url (assoc-recursive event 'payload 'issue 'html_url))))
 
