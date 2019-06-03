@@ -20,7 +20,7 @@
 (defconst dgh--supported-event-types'
   ("CreateEvent"
    "ForkEvent"
-   ;; "IssueCommentEvent"
+   "IssueCommentEvent"
    ;; "IssuesEvent"
    ;; "MemberEvent"
    ;; "MembershipEvent"
@@ -83,7 +83,7 @@
   (pcase (assoc-default 'type event)
     ("CreateEvent"                   (dgh--parse-create-event event))
     ("ForkEvent"                     (dgh--parse-fork-event event))
-    ;; ("IssueCommentEvent"             (message "IssueCommentEvent"))
+    ("IssueCommentEvent"             (dashboard-github-parse-issue-comment-event event))
     ;; ("IssuesEvent"                   (message "IssuesEvent"))
     ;; ("MemberEvent"                   (message "MemberEvent"))
     ;; ("MembershipEvent"               (message "MembershipEvent"))
@@ -99,7 +99,7 @@
 (defun dgh--parse-create-event (event)
   "Parse a CreateEvent data structure from EVENT."
   (list
-   (cons 'msg (format "%s created a repository %s"
+   (cons 'msg (format "[%s] created a repository [%s]"
 		      (assoc-recursive event 'actor 'login)
 		      (assoc-recursive event 'repo 'name)))
    (cons 'url (format "https://github.com/%s"
@@ -108,7 +108,7 @@
 (defun dgh--parse-fork-event (event)
   "Parse a ForkEvent data structure from EVENT."
   (list
-   (cons 'msg (format "%s forked %s from %s"
+   (cons 'msg (format "[%s] forked [%s] from [%s]"
 		      (assoc-recursive event 'actor 'login)
 		      (assoc-recursive event 'payload 'forkee 'full_name)
 		      (assoc-recursive event 'repo 'name)))
@@ -118,11 +118,22 @@
 (defun dgh--parse-watch-event (event)
   "Parse a WatchEvent data scructure from EVENT."
   (list
-   (cons 'msg (format "%s starred %s"
+   (cons 'msg (format "[%s] starred [%s]"
 		      (assoc-recursive event 'actor 'login)
 		      (assoc-recursive event 'repo 'name)))
    (cons 'url (format "https://github.com/%s"
-		       (assoc-recursive event 'repo 'name)))))
+		      (assoc-recursive event 'repo 'name)))))
+
+(defun dashboard-github-parse-issue-comment-event (event)
+  "Parse an IssueCommentEvent data structure from EVENT."
+  (list
+   (cons 'msg (format "[%s] %s comment on [%s](#%d) in [%s]"
+		      (assoc-recursive event 'actor 'login)
+		      (assoc-recursive event 'payload 'action)
+		      (assoc-recursive event 'payload 'issue 'title)
+		      (assoc-recursive event 'payload 'issue 'number)
+		      (assoc-recursive event 'repo 'name)))
+   (cons 'url (assoc-recursive event 'payload 'comment 'html_url))))
 
 (defun dashboard-insert-github (list-size)
   "Insert LIST-SIZE amount of events from Github into the dashboard."
