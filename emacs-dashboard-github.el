@@ -20,13 +20,13 @@
 (defconst dgh--supported-event-types'
   ("CreateEvent"
    "ForkEvent"
+   "IssuesEvent"
    "IssueCommentEvent"
-   ;; "IssuesEvent"
    ;; "MemberEvent"
    ;; "MembershipEvent"
    ;; "PublicEvent"
-   ;; "PullRequestEvent"
-   ;; "PullRequestReviewEvent"
+   "PullRequestEvent"
+   "PullRequestReviewEvent"
    ;; "PullRequestReviewCommentEvent"
    ;; "ReleaseEvent"
    ;; "RepositoryEvent"
@@ -81,22 +81,22 @@
 (defun dgh--parse-event (event)
   "Parse a single EVENT."
   (pcase (assoc-default 'type event)
-    ("CreateEvent"                   (dgh--parse-create-event event))
-    ("ForkEvent"                     (dgh--parse-fork-event event))
+    ("CreateEvent"                   (dashboard-github-parse-create-event event))
+    ("ForkEvent"                     (dashboard-github-parse-fork-event event))
+    ("IssuesEvent"                   (dashboard-github-parse-issue-event event))
     ("IssueCommentEvent"             (dashboard-github-parse-issue-comment-event event))
-    ;; ("IssuesEvent"                   (message "IssuesEvent"))
     ;; ("MemberEvent"                   (message "MemberEvent"))
     ;; ("MembershipEvent"               (message "MembershipEvent"))
     ;; ("PublicEvent"                   (message "PublicEvent"))
-    ;; ("PullRequestEvent"              (message "PullRequestEvent"))
-    ;; ("PullRequestReviewEvent"        (message "PullRequestReviewEvent"))
+    ("PullRequestEvent"              (dashboard-github-parse-pull-request-event event))
+    ("PullRequestReviewEvent"        (dashboard-github-parse-pull-request-review-event event))
     ;; ("PullRequestReviewCommentEvent" (message "PullRequestReviewCommentEvent"))
     ;; ("ReleaseEvent"                  (message "ReleaseEvent"))
     ;; ("RepositoryEvent"               (message "RepositoryEvent"))
     ;; ("StarEvent"                     (message "StarEvent"))
-    ("WatchEvent"                     (dgh--parse-watch-event event))))
+    ("WatchEvent"                     (dashboard-github-parse-watch-event event))))
 
-(defun dgh--parse-create-event (event)
+(defun dashboard-github-parse-create-event (event)
   "Parse a CreateEvent data structure from EVENT."
   (list
    (cons 'msg (format "[%s] created a repository [%s]"
@@ -105,7 +105,7 @@
    (cons 'url (format "https://github.com/%s"
 		      (assoc-recursive event 'repo 'name)))))
 
-(defun dgh--parse-fork-event (event)
+(defun dashboard-github-parse-fork-event (event)
   "Parse a ForkEvent data structure from EVENT."
   (list
    (cons 'msg (format "[%s] forked [%s] from [%s]"
@@ -115,7 +115,7 @@
     (cons 'url (format "https://github.com/%s"
 		       (assoc-recursive event 'repo 'name)))))
  
-(defun dgh--parse-watch-event (event)
+(defun dashboard-github-parse-watch-event (event)
   "Parse a WatchEvent data scructure from EVENT."
   (list
    (cons 'msg (format "[%s] starred [%s]"
@@ -124,16 +124,49 @@
    (cons 'url (format "https://github.com/%s"
 		      (assoc-recursive event 'repo 'name)))))
 
+(defun dashboard-github-parse-issue-event (event)
+  "Parse an IssueEvent data structure from EVENT."
+  (list
+   (cons 'msg (format "[%s] %s issue [%s](%d) in [%s]"
+		      (assoc-recursive event 'actor 'login)
+		      (assoc-recursive event 'payload 'action)
+		      (assoc-recursive event 'payload 'issue 'title)
+		      (assoc-recursive event 'payload 'issue 'numer)
+		      (assoc-recursive event 'repo 'name)))
+   (cons 'url (assoc-recursive event 'payload 'issue 'html_url))))
+
 (defun dashboard-github-parse-issue-comment-event (event)
   "Parse an IssueCommentEvent data structure from EVENT."
   (list
-   (cons 'msg (format "[%s] %s comment on [%s](#%d) in [%s]"
+   (cons 'msg (format "[%s] %s comment on issue [%s](#%d) in [%s]"
 		      (assoc-recursive event 'actor 'login)
 		      (assoc-recursive event 'payload 'action)
 		      (assoc-recursive event 'payload 'issue 'title)
 		      (assoc-recursive event 'payload 'issue 'number)
 		      (assoc-recursive event 'repo 'name)))
    (cons 'url (assoc-recursive event 'payload 'comment 'html_url))))
+
+(defun dashboard-github-parse-pull-request-event (event)
+  "Parse a PullRequestEvent data structure from EVENT."
+  (list
+   (cons 'msg (format "[%s] %s PR [%s](#%d) in [%s]"
+		      (assoc-recursive event 'actor 'login)
+		      (assoc-recursive event 'payload 'action)
+		      (assoc-recursive event 'payload 'pull_request 'title)
+		      (assoc-recursive event 'payload 'pull_request 'number)
+		      (assoc-recursive event 'repo 'name)))
+   (cons 'url (assoc-recursive event 'payload 'pull_request 'html_url))))
+
+(defun dashboard-github-parse-pull-request-review-event (event)
+  "Parse a PullRequestReview data structure from EVENT."
+  (list
+   (cons 'msg (format "[%s] %s a PR review for [%s](#%d) in [%s]"
+		      (assoc-recursive event 'actor 'login)
+		      (assoc-recursive event 'payload 'action)
+		      (assoc-recursive event 'payload 'pull_request 'title)
+		      (assoc-recursive event 'payload 'pull_request 'number)
+		      (assoc-recursive event 'repo 'name)))
+   (cons 'url (assoc-recursive event 'payload 'review  'html_url))))
 
 (defun dashboard-insert-github (list-size)
   "Insert LIST-SIZE amount of events from Github into the dashboard."
